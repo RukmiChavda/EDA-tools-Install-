@@ -1,0 +1,151 @@
+#!/bin/bash
+# ==========================================================
+# Open-Source VLSI Tools Installation Script with Sky130 PDK
+# Author: Rukmi Chavda
+# ==========================================================
+
+set -e  # Exit immediately on error
+
+# ---------- Update and Install Dependencies ----------
+sudo apt-get update
+sudo apt-get install -y git build-essential cmake python3 python3-pip \
+    tcl-dev tk-dev libx11-dev libxpm-dev libxaw7-dev libxmu-dev \
+    libglu1-mesa-dev freeglut3-dev mesa-common-dev libncurses-dev \
+    bison flex autoconf automake libtool pkg-config wget curl libreadline-dev
+
+# ---------- Function for Cloning Repos Safely ----------
+clone_repo() {
+    if [ -d "$2" ]; then
+        echo "$2 already exists"
+    else
+        git clone "$1" "$2"
+    fi
+}
+
+# ==========================================================
+# 1. Yosys (Synthesis)
+# ==========================================================
+sudo apt-get install -y yosys
+which yosys || echo "Yosys not found"
+
+# ==========================================================
+# 2. OpenROAD (PnR + Flow)
+# ==========================================================
+clone_repo https://github.com/The-OpenROAD-Project/OpenROAD.git OpenROAD
+cd OpenROAD
+sudo ./etc/DependencyInstaller.sh
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+sudo make install
+cd ../..
+which openroad || echo "OpenROAD not found"
+
+# ==========================================================
+# 3. OpenSTA (Timing Analysis)
+# ==========================================================
+clone_repo https://github.com/The-OpenROAD-Project/OpenSTA.git OpenSTA
+cd OpenSTA
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+sudo make install
+cd ../..
+which sta || echo "OpenSTA not found"
+
+# ==========================================================
+# 4. Magic (Layout + DRC + Extraction)
+# ==========================================================
+clone_repo https://github.com/RTimothyEdwards/magic.git magic
+cd magic
+./configure
+make -j$(nproc)
+sudo make install
+cd ..
+which magic || echo "Magic not found"
+
+# ==========================================================
+# 5. Netgen (LVS)
+# ==========================================================
+clone_repo https://github.com/RTimothyEdwards/netgen.git netgen
+cd netgen
+./configure
+make -j$(nproc)
+sudo make install
+cd ..
+which netgen || echo "Netgen not found"
+
+# ==========================================================
+# 6. KLayout (Layout Viewer/DRC)
+# ==========================================================
+sudo apt-get install -y klayout
+which klayout || echo "KLayout not found"
+
+# ==========================================================
+# 7. Xschem (Schematic Editor)
+# ==========================================================
+clone_repo https://github.com/StefanSchippers/xschem.git xschem
+cd xschem
+./configure
+make -j$(nproc)
+sudo make install
+cd ..
+which xschem || echo "Xschem not found"
+
+# ==========================================================
+# 8. Ngspice (Analog Simulation)
+# ==========================================================
+clone_repo https://git.code.sf.net/p/ngspice/ngspice ngspice_git
+cd ngspice_git
+sudo apt-get install -y adms
+mkdir -p release
+./autogen.sh --adms
+cd release
+../configure --with-x --enable-xspice --disable-debug --enable-cider \
+    --with-readline=yes --enable-openmp --enable-adms
+make -j$(nproc)
+sudo make install
+cd ../..
+which ngspice || echo "Ngspice not found"
+
+# ==========================================================
+# 9. OpenRAM (SRAM Compiler)
+# ==========================================================
+clone_repo https://github.com/VLSIDA/OpenRAM.git OpenRAM
+cd OpenRAM
+make sky130-pdk || true
+if [ ! -d "miniconda" ]; then
+    ./install_conda.sh
+    source miniconda/bin/activate
+fi
+make sky130-install || true
+cd ..
+which openram || echo "OpenRAM not found"
+
+# ==========================================================
+# 10. Sky130 PDK (Process Design Kit)
+# ==========================================================
+clone_repo git://opencircuitdesign.com/open_pdks open_pdks
+cd open_pdks
+./configure --enable-sky130-pdk
+sudo make -j$(nproc)
+sudo make install
+cd ..
+which open_pdks || echo "Sky130 PDK not found"
+
+# ==========================================================
+# Installation Summary
+# ==========================================================
+echo "Verification Summary:"
+which yosys
+which openroad
+which sta
+which magic
+which netgen
+which klayout
+which xschem
+which ngspice
+which openram || echo "OpenRAM installed manually via Python"
+which open_pdks || echo "Sky130 PDK installed under /usr/local/share/pdk"
+
+echo "Installation completed."
